@@ -1,7 +1,7 @@
 import React from 'react';
 import BoardRow from '../BoardRow';
 
-const GameBoard = ({ cells }) => {
+const GameBoard = ({ cells, handleShot}) => {
 
   const letters = ['', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
   const totalRows = 10;
@@ -23,7 +23,7 @@ const GameBoard = ({ cells }) => {
         const rowCells = cells.filter(cell => cell.row === rowIndex);
         
         return (
-          <BoardRow key={rowIndex} rowIndex={rowIndex} rowCells={rowCells} />
+          <BoardRow key={rowIndex} rowIndex={rowIndex} rowCells={rowCells} handleShot={handleShot}/>
         );
       })}
     </div>

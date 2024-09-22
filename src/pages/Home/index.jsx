@@ -4,14 +4,19 @@ import {useParams, useNavigate} from 'react-router-dom'
 import GameBoard from '../../components/GameBoard'
 import GameContext from '../../GameContext'
 import GameResultModal from '../../components/GameResultModal'
+import {HubConnectionBuilder, LogLevel} from '@microsoft/signalr'
 
 const Home = () => {
+
+  const apiUrl = 'http://localhost:5285/api/games'
 
   const [game, setGame] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
   const [errorMessage, setErrorMessage] = useState('')
   const [showErrorMessage, setShowErrorMessage] = useState(false)
+
+  const [conn, setConnection] = useState()
 
   const {id} = useParams()
   const navigate = useNavigate()
@@ -23,13 +28,11 @@ const Home = () => {
         setIsLoading(true)
         if(typeof id === 'undefined') {
            try {
-              const response = await fetch('http://localhost:5285/api/Games', {
+              const response = await fetch(apiUrl, {
                         method: 'POST',
                         credentials: 'include',
                     })
                     const data = await response.json()
-                    console.log(response.status)
-                    console.log(data)
                     if(response.status == 500) {
                     setShowErrorMessage(true)
                     setErrorMessage(data.message)
@@ -45,20 +48,19 @@ const Home = () => {
 
         if(typeof id !== 'undefined') {
                 try {
-                     const response = await fetch(`http://localhost:5285/api/Games/${id}`, {
+                     const response = await fetch(`${apiUrl}/${id}`, {
                                 method: 'GET',
                                 credentials: 'include',
                                 headers: { 'Content-Type': 'application/json' },
                             })
                        const data = await response.json()
-                       console.log(data)
                        if(response.status == 404) {
                          navigate('/notfound')
                        } else if(response.status == 500) {
                          setShowErrorMessage(true)
                          setErrorMessage(data.message)
                        } else {
-
+                          await joinGame(id)
                           setGame(data)
                           setIsLoading(false)
                           setShowErrorMessage(false)
@@ -73,8 +75,45 @@ const Home = () => {
     getCurrentGame()
   }, [id])
 
+
   const handleRestart = async() => {
     navigate('/game')
+  }
+
+  const joinGame = async(gameId) => {
+    try {
+        // Initiate connection
+        const conn = new HubConnectionBuilder()
+                        .withUrl('http://localhost:5285/game')
+                        .configureLogging(LogLevel.Information)
+                        .build();
+
+        conn.on('JoinSpecificGame', (username, msg) => {
+            console.log('msg: ', msg);
+        });
+
+        conn.on('ReceiveGameAfterShot', (username, gameAfterShot) => {
+            setGame(gameAfterShot)
+        })
+
+        await conn.start();
+        
+        await conn.invoke('JoinSpecificGame', {connectionId: undefined, gameId});
+        
+        setConnection(conn);
+
+    } catch(e) {
+        console.log(e)
+    }
+  }
+
+  const handleShot = async(shotCoords) => {
+    try {
+        console.log(conn)
+        await conn.invoke('MakeShot', shotCoords);
+    } catch(e) {
+        console.log(e)
+    }
   }
 
   return (
@@ -107,7 +146,7 @@ const Home = () => {
                     </h2>
                 </div>
                 <div className='flex flex-col items-center w-full'>
-                  <GameBoard cells={game.cells}/>
+                  <GameBoard cells={game.cells} handleShot={handleShot}/>
                   
                   
 
