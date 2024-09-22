@@ -73,6 +73,14 @@ const Home = () => {
     }
 
     getCurrentGame()
+
+    return () => {
+        if (conn) {
+          conn.stop();
+          conn.invoke('LeaveSpecificGame');
+        }
+      };
+
   }, [id])
 
 
@@ -109,7 +117,6 @@ const Home = () => {
 
   const handleShot = async(shotCoords) => {
     try {
-        console.log(conn)
         await conn.invoke('MakeShot', shotCoords);
     } catch(e) {
         console.log(e)
