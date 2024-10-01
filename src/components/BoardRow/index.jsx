@@ -2,7 +2,7 @@ import React from 'react'
 import './styles.css'
 import BoardCell from '../BoardCell'
 
-const BoardRow = ({rowIndex, rowCells, handleShot}) => {
+const BoardRow = ({rowIndex, rowCells, handleShot, canShoot, isYourBoard}) => {
   return (
     <div className='grid grid-cols-11'>
       <div
@@ -10,7 +10,14 @@ const BoardRow = ({rowIndex, rowCells, handleShot}) => {
           {rowIndex+1}
       </div>
     {rowCells.map((cell, colIndex) => (
-      <BoardCell key={colIndex} rowIndex={rowIndex} colIndex={colIndex} cell={cell} handleShot={handleShot}/>
+      <BoardCell
+        key={colIndex}
+        rowIndex={rowIndex}
+        colIndex={colIndex}
+        cell={cell}
+        handleShot={handleShot}
+        canShoot={canShoot}
+        isYourBoard={isYourBoard}/>
     ))}
   </div>
   )

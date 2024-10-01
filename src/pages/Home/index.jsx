@@ -11,6 +11,7 @@ const Home = () => {
   const apiUrl = 'http://localhost:5285/api/games'
 
   const [game, setGame] = useState(null)
+  const [connectionId, setConnectionId] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
   const [errorMessage, setErrorMessage] = useState('')
@@ -48,25 +49,8 @@ const Home = () => {
 
         if(typeof id !== 'undefined') {
                 try {
-                     const response = await fetch(`${apiUrl}/${id}`, {
-                                method: 'GET',
-                                credentials: 'include',
-                                headers: { 'Content-Type': 'application/json' },
-                            })
-                       const data = await response.json()
-                       if(response.status == 404) {
-                         navigate('/notfound')
-                       } else if(response.status == 500) {
-                         setShowErrorMessage(true)
-                         setErrorMessage(data.message)
-                       } else {
-                          await joinGame(id)
-                          setGame(data)
-                          setIsLoading(false)
-                          setShowErrorMessage(false)
-                       }
-
-                        } catch(error) {
+                      await joinGame(id)
+                    } catch(error) {
                             console.error('An error occurred: ', error)
                         }
         }
@@ -96,16 +80,36 @@ const Home = () => {
                         .configureLogging(LogLevel.Information)
                         .build();
 
-        conn.on('JoinSpecificGame', (username, msg) => {
-            console.log('msg: ', msg);
+        conn.on('GetYourConnectionId', (username, connId) => {
+            setConnectionId(connId)
+        })
+
+        conn.on('JoinSpecificGame', (username, joinedGame) => {
+            setShowErrorMessage(false);
+            setGame(joinedGame);
+            if(joinedGame.players.length < 2)
+                setIsLoading(true);
+            else
+                setIsLoading(false);
         });
 
         conn.on('ReceiveGameAfterShot', (username, gameAfterShot) => {
             setGame(gameAfterShot)
         })
 
+        conn.on('ReceiveGameAfterSurrender', (username, gameAfterSurrender) => {
+            setGame(gameAfterSurrender)
+        })
+
+        conn.on('JoinSpecificGameError', (username, errorMessage) => {
+            setIsLoading(true)
+            setShowErrorMessage(true);
+            setErrorMessage(errorMessage); 
+          });
+
         await conn.start();
         
+        await conn.invoke('GetConnectionId');
         await conn.invoke('JoinSpecificGame', {connectionId: undefined, gameId});
         
         setConnection(conn);
@@ -123,6 +127,14 @@ const Home = () => {
     }
   }
 
+  const handleSurrender = async() => {
+    try {
+        await conn.invoke('HandleSurrender');
+    } catch(e) {
+        console.log(e)
+    }
+  }
+
   return (
 
     <GameContext.Provider value={{setGame}}>
@@ -134,12 +146,12 @@ const Home = () => {
                             <button
                                 onClick={handleRestart}
                                 className='restart-btn'>
-                                    Retry
+                                    Find new game
                             </button>
 
                         </div>
                     ) : (
-                        <h1 className='game-hdr'>Loading...</h1>
+                        <h1 className='game-hdr'>Finding Opponent...</h1>
 
                     )}
               </div>
@@ -147,33 +159,37 @@ const Home = () => {
             <div className='flex flex-col gap-5 m-5 w-full items-center content-center'>
                 <div className='flex flex-col w-full items-center justify-center'>
                     <h1 className='game-hdr'>Battleship Game</h1>
-                    <h2 className='game-subhdr'>Ships remaining: {game && game.ships.length}</h2>
-                    <h2 className={`game-subhdr text-blue-800`}>
-                        {(game && game.shotResultMessage !== '') ? game.shotResultMessage : <span className='invisible'>invisible text placeholder</span>}
-                    </h2>
+                    { <h2 className='game-subhdr'>{game.players.find(p => p.connectionId == connectionId).isYourTurn ? 'Your turn' : 'Opponent\'s turn'}</h2> }
                 </div>
                 <div className='flex flex-col items-center w-full'>
-                  <GameBoard cells={game.cells} handleShot={handleShot}/>
-                  
-                  
+                  <GameBoard cells={game.players.find(p => p.connectionId == connectionId).cells}
+                             canShoot={false}
+                             handleShot={handleShot}
+                             isYourBoard={true}
+                  />  
+                  <GameBoard cells={game.players.find(p => p.connectionId != connectionId).cells}
+                             canShoot={game.players.find(p => p.connectionId == connectionId).isYourTurn}
+                             handleShot={handleShot}
+                             isYourBoard={false}/> 
 
                   <button
-                   onClick={handleRestart}
-                   className='restart-btn'>Restart Game</button>
+                    className='new-game-btn'
+                    onClick={handleSurrender}>Surrender</button>
+
                 </div>
-                {game.status == 'WON' && (
+                {game.players.find(p => p.connectionId == connectionId).gameStatus == 'WON' && (
                     <GameResultModal
                     status='WON'
                     header='You won!'
-                    description='You have destroyed all ships!'
+                    description={game.players.find(p => p.connectionId != connectionId).ships.length > 0 ? 'Opponent surrendered!' : 'You have destroyed all opponent\'s ships!'}   
                     handleButtonClick={() => handleRestart()}/>
                     )}
 
-            {game.status == 'LOST' && (
+            {game.players.find(p => p.connectionId == connectionId).gameStatus == 'LOST' && (
                 <GameResultModal
                 status='LOST'
                 header='You lost!'
-                description='You have ran out of shoots!'
+                description={game.players.find(p => p.connectionId == connectionId).ships.length > 0 ? 'You surrendered!' : 'All of your ships have been destroyed!'}
                 handleButtonClick={() => handleRestart()}/>
                 )}   
             </div>
