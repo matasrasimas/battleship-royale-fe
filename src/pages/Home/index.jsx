@@ -21,7 +21,6 @@ const Home = () => {
 
     const [timeLeft, setTimeLeft] = useState(3600);
 
-    const [message, setMessage] = useState('');
     const [messages, setMessages] = useState([]);
     const { id } = useParams();
     const navigate = useNavigate();
@@ -99,9 +98,6 @@ const Home = () => {
             });
 
             conn.on('ReceiveMessage', (username, message) => {
-                //setGame(gameAfterMessage);
-
-                // show message in chat
                 console.log("Received Message:", username, message);
                 setMessages((prevMessages) => [...prevMessages, { username, message }]);
             });
@@ -148,8 +144,6 @@ const Home = () => {
     };
 
     const handleMessage = message => () => {
-        //const messageText = message;
-        console.log("Sending Message:", message);
         try {
             conn.invoke('SendMessage', message);
         } catch (e) {

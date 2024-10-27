@@ -1,12 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import './styles.css';
 
 const Chat = ({ handleMessage, text }) => {
     const [message, setMessage] = useState('');
-    const [messages, setMessages] = useState([]);  // assume messages update through SignalR
+
+    const handleButtonClick = () => {
+        if (message !== '') {
+            handleMessage(message)();
+            setMessage('');
+        }
+    };
 
     return (
         <div>
-            <div style={{border: '1px solid black', marginBottom: '10px', padding: '5px'}}>
+            <div className='text-box'>
                 {text.map((msg, index) => (
                     <div key={index}>
                         <strong>{msg.username}: </strong>
@@ -17,13 +24,13 @@ const Chat = ({ handleMessage, text }) => {
             <div>
                 <input
                     type="text"
-                    style={{ border: '1px solid black', padding: '5px'}}
+                    className='input-box'
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                 />
                 <button
-                    onClick={handleMessage(message)}
-                    style={{    border: '1px solid black', backgroundColor: 'green', marginLeft: '5px', padding: '5px'}}
+                    onClick={handleButtonClick}
+                    className='send-button'
                 >
                     Send
                 </button>
