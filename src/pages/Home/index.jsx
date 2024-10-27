@@ -93,6 +93,10 @@ const Home = () => {
                 setGame(gameAfterSurrender);
             });
 
+            conn.on('ReceiveGameAfterGoToNextLevel', (username, gameAfterGoToNextLevel) => {
+                setGame(gameAfterGoToNextLevel);
+            });
+
             conn.on('JoinSpecificGameError', (username, errorMessage) => {
                 setShowErrorMessage(true);
                 setErrorMessage(errorMessage);
@@ -151,6 +155,14 @@ const Home = () => {
     const handleRestart = () => {
         navigate('/game');
     };
+
+    const handleGoToNextLevel = async () => {
+        try {
+            await conn.invoke('GoToNextLevel', { connectionId: undefined, gameId: id });
+        } catch (e) {
+            console.log(e);
+        }
+    }
 
     useEffect(() => {
         if (game) {
@@ -223,7 +235,8 @@ const Home = () => {
                                     ? 'Opponent surrendered!'
                                     : "You have destroyed all opponent's ships!"
                             }
-                            handleButtonClick={handleRestart}
+                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length == 100 ? 'Next Level' : 'New Game'}
+                            handleButtonClick={game.players.find(p => p.connectionId === connectionId).cells.length == 100 ? handleGoToNextLevel : handleRestart}
                         />
                     )}
                     {game.players.find(p => p.connectionId === connectionId).gameStatus === 'LOST' && (
@@ -235,7 +248,8 @@ const Home = () => {
                                     ? 'You surrendered!'
                                     : 'All of your ships have been destroyed!'
                             }
-                            handleButtonClick={handleRestart}
+                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length == 100 ? 'Next Level' : 'New Game'}
+                            handleButtonClick={game.players.find(p => p.connectionId === connectionId).cells.length == 100 ? handleGoToNextLevel : handleRestart }
                         />
                     )}
                     {game.gameStatus === 'TIME_OUT' && (
@@ -243,6 +257,7 @@ const Home = () => {
                             status='TIME_OUT'
                             header='Time Up!'
                             description='The game ended due to the time limit being reached.'
+                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length == 100 ? 'Next Level' : 'New Game'}
                             handleButtonClick={handleRestart}
                         />
                     )}
