@@ -236,6 +236,7 @@ const Home = () => {
                                 ? 'Your turn'
                                 : "Opponent's turn"}
                         </h2>
+                        <h2>Your Points: {game.players.find(p => p.connectionId === connectionId).points}</h2>
                         <h2 className='game-timer'>Time left: {formatTime(timeLeft)}</h2>
                     </div>
                     <div className='flex flex-col items-center w-full'>
