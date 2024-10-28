@@ -1,21 +1,27 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins&family=Rubik+Lines&display=swap');
 
+body {
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
 .game-hdr {
     font-family: 'Rubik Lines', sans-serif;
-    text-align:center;
+    text-align: center;
     color: black;
     text-shadow: 5px;
     letter-spacing: 2px;
     font-size: 40px;
     font-weight: 600;
-
 }
+
 .game-subhdr {
     font-family: 'Poppins', sans-serif;
-    margin-bottom:5px;
-    text-align:center;
-    font-weight:600;
-    font-size:24px;
+    margin-bottom: 5px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 24px;
     letter-spacing: 2px;
 }
 
@@ -24,11 +30,73 @@ button.restart-btn {
     width: 150px;
     height: 50px;
     color: white;
-    font-weight:500;
-    border-radius:5%;
+    font-weight: 500;
+    border-radius: 5%;
     transition: color 0.3s ease-in;
 }
 
 button.restart-btn:hover {
-    color:yellow;
+    color: yellow;
+}
+
+.shot-selection {
+    display: flex;
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.shot-icon {
+    background-color: #4CAF50; /* Green */
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 15px;
+    font-size: 30px; /* Size for the emoji */
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+.shot-icon.selected {
+    background-color: #3e8e41; /* Darker green when selected */
+}
+
+.shot-icon:hover {
+    background-color: #45a049; /* Lighter green on hover */
+    transform: scale(1.05); /* Slightly increase size on hover */
+}
+
+.fire-shots-btn {
+    background-color: #f44336; /* Red */
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 15px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+.fire-shots-btn:hover {
+    background-color: #d32f2f; /* Darker red on hover */
+    transform: scale(1.05); /* Slightly increase size on hover */
+}
+
+.new-game-btn {
+    background-color: #007bff; /* Blue */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.new-game-btn:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+}
+
+.game-timer,
+.game-shots {
+    font-size: 18px;
+    font-weight: bold;
 }

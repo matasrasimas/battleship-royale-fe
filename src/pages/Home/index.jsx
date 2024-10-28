@@ -14,41 +14,25 @@ const Home = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
     const [showErrorMessage, setShowErrorMessage] = useState(false);
-    const [conn, setConnection] = useState();
-
-
+    const [conn, setConnection] = useState(null);
     const [timeLeft, setTimeLeft] = useState(3600);
     const { id } = useParams();
     const navigate = useNavigate();
+    const [selectedShots, setSelectedShots] = useState(1); // Initialize with a default value
+
+    // New state for hit/miss messages
+    const [hitMessage, setHitMessage] = useState('');
+    const [missMessage, setMissMessage] = useState('');
+    const [showHitPopup, setShowHitPopup] = useState(false);
+    const [showMissPopup, setShowMissPopup] = useState(false);
 
     useEffect(() => {
         const getCurrentGame = async () => {
             setIsLoading(true);
-            if (typeof id === 'undefined') {
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        credentials: 'include',
-                    });
-                    const data = await response.json();
-                    if (response.status === 500) {
-                        setShowErrorMessage(true);
-                        setErrorMessage(data.message);
-                    } else {
-                        setShowErrorMessage(false);
-                        navigate(`/game/${data}`);
-                    }
-                } catch (error) {
-                    console.error('An error occurred: ', error);
-                }
-            }
-
-            if (typeof id !== 'undefined') {
-                try {
-                    await joinGame(id);
-                } catch (error) {
-                    console.error('An error occurred: ', error);
-                }
+            if (!id) {
+                await createNewGame();
+            } else {
+                await joinGame(id);
             }
         };
 
@@ -62,88 +46,129 @@ const Home = () => {
         };
     }, [id]);
 
+    const createNewGame = async () => {
+        try {
+            const response = await fetch(apiUrl, { method: 'POST', credentials: 'include' });
+            if (!response.ok) {
+                const data = await response.json();
+                setShowErrorMessage(true);
+                setErrorMessage(data.message);
+                return;
+            }
+            const gameId = await response.json();
+            setShowErrorMessage(false);
+            navigate(`/game/${gameId}`);
+        } catch (error) {
+            console.error('An error occurred: ', error);
+            setShowErrorMessage(true);
+            setErrorMessage('Failed to create or fetch the game.');
+        }
+    };
+
     const joinGame = async (gameId) => {
         try {
-            const conn = new HubConnectionBuilder()
+            const newConn = new HubConnectionBuilder()
                 .withUrl('http://localhost:5285/game')
                 .configureLogging(LogLevel.Information)
                 .build();
 
-            conn.on('GetYourConnectionId', (username, connId) => {
-                setConnectionId(connId);
-            });
-
-            conn.on('JoinSpecificGame', (username, joinedGame) => {
-                setShowErrorMessage(false);
-                setGame(joinedGame);
-
-                const initialTimeRemaining = typeof joinedGame.timeRemaining === 'number' && joinedGame.timeRemaining > 0
-                    ? joinedGame.timeRemaining
-                    : 3600;
-
-                setTimeLeft(initialTimeRemaining);
-                setIsLoading(joinedGame.players.length < 2);
-            });
-
-            conn.on('ReceiveGameAfterShot', (username, gameAfterShot) => {
+            newConn.on('GetYourConnectionId', (username, connId) => setConnectionId(connId));
+            newConn.on('JoinSpecificGame', (username, joinedGame) => handleGameJoin(joinedGame));
+            newConn.on('ReceiveGameAfterShot', (username, gameAfterShot, shotResult) => {
                 setGame(gameAfterShot);
-            });
-
-            conn.on('ReceiveGameAfterSurrender', (username, gameAfterSurrender) => {
-                setGame(gameAfterSurrender);
-            });
-
-            conn.on('ReceiveGameAfterGoToNextLevel', (username, gameAfterGoToNextLevel) => {
-                setGame(gameAfterGoToNextLevel);
-            });
-
-            conn.on('JoinSpecificGameError', (username, errorMessage) => {
-                setShowErrorMessage(true);
-                setErrorMessage(errorMessage);
-                setIsLoading(true);
-            });
-
-            conn.on('ReceiveTimeUpdate', (timeRemaining) => {
-                if (typeof timeRemaining === 'number' && timeRemaining >= 0) {
-                    setTimeLeft(timeRemaining);
-                    if (timeRemaining === 0) {
-                        endGameDueToTimeOut();
-                    }
+                setSelectedShots(1); // Reset selected shots after making a shot
+                
+                // Determine if hit or miss
+                if (shotResult === 'hit') {
+                    setHitMessage('Hit!');
+                    setShowHitPopup(true);
+                } else if (shotResult === 'miss') {
+                    setMissMessage('Miss!');
+                    setShowMissPopup(true);
                 }
             });
 
-            await conn.start();
-            await conn.invoke('GetConnectionId');
-            await conn.invoke('JoinSpecificGame', { connectionId: undefined, gameId });
+            // Integrate additional listener for going to next level
+            newConn.on('ReceiveGameAfterGoToNextLevel', (username, gameAfterGoToNextLevel) => {
+                setGame(gameAfterGoToNextLevel);
+            });
 
-            setConnection(conn);
+            newConn.on('ReceiveGameAfterSurrender', (username, gameAfterSurrender) => setGame(gameAfterSurrender));
+            newConn.on('JoinSpecificGameError', (username, errorMessage) => handleError(errorMessage));
+            newConn.on('ReceiveTimeUpdate', (timeRemaining) => handleTimeUpdate(timeRemaining));
+
+            await newConn.start();
+            await newConn.invoke('GetConnectionId');
+            await newConn.invoke('JoinSpecificGame', { connectionId: undefined, gameId });
+
+            setConnection(newConn);
         } catch (e) {
-            console.log(e);
+            console.error('Connection error: ', e);
         }
     };
 
-    const handleShot = async (shotCoords) => {
-        try {
-            await conn.invoke('MakeShot', shotCoords);
-        } catch (e) {
-            console.log(e);
-        }
+    const handleGameJoin = (joinedGame) => {
+        setShowErrorMessage(false);
+        setGame(joinedGame);
+        setTimeLeft(joinedGame.timeRemaining || 3600);
+        setIsLoading(joinedGame.players.length < 2);
     };
 
-    const handleSurrender = async () => {
-        try {
-            await conn.invoke('HandleSurrender');
-        } catch (e) {
-            console.log(e);
+    const handleError = (errorMessage) => {
+        setShowErrorMessage(true);
+        setErrorMessage(errorMessage);
+        setIsLoading(true);
+    };
+
+    const handleTimeUpdate = (timeRemaining) => {
+        if (typeof timeRemaining === 'number' && timeRemaining >= 0) {
+            setTimeLeft(timeRemaining);
+            if (timeRemaining === 0) {
+                endGameDueToTimeOut();
+            }
         }
     };
 
     const endGameDueToTimeOut = () => {
-        setGame(prevGame => ({
-            ...prevGame,
-            gameStatus: 'TIME_OUT',
-        }));
+        setGame(prevGame => ({ ...prevGame, gameStatus: 'TIME_OUT' }));
         setIsLoading(false);
+    };
+
+    const handleShot = async (shotCoords) => {
+        // Ensure that selected shots is valid before proceeding
+        if (selectedShots <= 0) {
+            console.warn("No shots selected. Please select a valid number of shots before firing.");
+            return;
+        }
+    
+        // Ensure connection is established
+        if (!conn) {
+            console.error("No active connection. Unable to make a shot.");
+            setErrorMessage("Connection to the game server is missing.");
+            setShowErrorMessage(true);
+            return;
+        }
+    
+        try {
+            console.info(`Attempting to make a shot with coordinates: ${JSON.stringify(shotCoords)} and selectedShots: ${selectedShots}`);
+            
+            // Invoke the MakeShot method on the server
+            await conn.invoke('MakeShot', shotCoords, selectedShots);
+    
+            console.info("Shot was successfully sent to the server.");
+        } catch (e) {
+            console.error("Error making shot: ", e);
+            setErrorMessage("Failed to make the shot. Please try again.");
+            setShowErrorMessage(true);
+        }
+    };
+    
+    const handleSurrender = async () => {
+        try {
+            await conn.invoke('HandleSurrender');
+        } catch (e) {
+            console.error('Error handling surrender: ', e);
+        }
     };
 
     const formatTime = (seconds) => {
@@ -165,8 +190,9 @@ const Home = () => {
     }
 
     useEffect(() => {
+        let timerInterval;
         if (game) {
-            const timerInterval = setInterval(() => {
+            timerInterval = setInterval(() => {
                 setTimeLeft(prevTimeLeft => {
                     if (prevTimeLeft <= 1) {
                         clearInterval(timerInterval);
@@ -178,92 +204,105 @@ const Home = () => {
                     return newTimeLeft;
                 });
             }, 1000);
-
-            return () => clearInterval(timerInterval);
         }
+        return () => clearInterval(timerInterval);
     }, [game, conn]);
 
+    const calculateAvailableShots = () => {
+        if (!game || !connectionId) return 0;
+
+        const player = game.players.find(p => p.connectionId === connectionId);
+        if (!player) return 0;
+
+        const shipsHitPoints = player.ships.map(ship => ship.hitPoints);
+        const maxHitPoints = Math.max(...shipsHitPoints);
+
+        if (maxHitPoints === 5) return 3;
+        if (maxHitPoints === 4) return 3;
+        if (maxHitPoints === 3) return 2;
+        if (maxHitPoints === 2) return 1; 
+        if (maxHitPoints === 1) return 1; 
+        return 0;
+    };
+
+    const availableShots = calculateAvailableShots();
+
+    // Helper to render error messages
+    const renderErrorMessage = () => (
+        <div className='flex flex-col w-full items-center gap-5'>
+            <h1 className='game-hdr'>{errorMessage}</h1>
+            <button onClick={handleRestart} className='restart-btn'>Find new game</button>
+        </div>
+    );
+
+    // Helper to render shot selection buttons
+    const renderShotSelection = () => {
+        if (!game || !connectionId || !game.players.find(p => p.connectionId === connectionId)?.isYourTurn) {
+            return null;
+        }
+
+        return (
+            <div className='shot-selection'>
+                {availableShots >= 1 && (
+                    <button 
+                        className={`shot-icon ${selectedShots === 1 ? 'selected' : ''}`}
+                        onClick={() => setSelectedShots(1)}
+                    >
+                        Singleshot
+                    </button>
+                )}
+                {availableShots >= 2 && (
+                    <button 
+                        className={`shot-icon ${selectedShots === 2 ? 'selected' : ''}`}
+                        onClick={() => setSelectedShots(2)}
+                    >
+                        Double shot
+                    </button>
+                )}
+                {availableShots >= 3 && (
+                    <button 
+                        className={`shot-icon ${selectedShots === 3 ? 'selected' : ''}`}
+                        onClick={() => setSelectedShots(3)}
+                    >
+                        Triple shot
+                    </button>
+                )}
+            </div>
+        );
+    };
+
+    // Conditional rendering for error messages
+    if (showErrorMessage) {
+        return renderErrorMessage();
+    }
+
     return (
-        <GameContext.Provider value={{ setGame }}>
+        <div className='game-container'>
             {isLoading ? (
-                <div className='flex flex-col gap-5 m-5'>
-                    {showErrorMessage ? (
-                        <div className='flex flex-col w-full items-center gap-5'>
-                            <h1 className='game-hdr'>{errorMessage}</h1>
-                            <button onClick={handleRestart} className='restart-btn'>
-                                Find new game
-                            </button>
-                        </div>
-                    ) : (
-                        <h1 className='game-hdr'>Finding Opponent...</h1>
-                    )}
-                </div>
+                <h1 className='loading-text'>Loading...</h1>
             ) : (
-                <div className='flex flex-col gap-5 m-5 w-full items-center content-center'>
-                    <div className='flex flex-col w-full items-center justify-center'>
-                        <h1 className='game-hdr'>Battleship Game</h1>
-                        <h2 className='game-subhdr'>
-                            {game.players.find(p => p.connectionId === connectionId).isYourTurn
-                                ? 'Your turn'
-                                : "Opponent's turn"}
-                        </h2>
-                        <h2 className='game-timer'>Time left: {formatTime(timeLeft)}</h2>
-                    </div>
-                    <div className='flex flex-col items-center w-full'>
-                        <GameBoard
-                            cells={game.players.find(p => p.connectionId === connectionId).cells}
-                            canShoot={false}
-                            handleShot={handleShot}
-                            isYourBoard={true}
-                        />
-                        <GameBoard
-                            cells={game.players.find(p => p.connectionId !== connectionId).cells}
-                            canShoot={game.players.find(p => p.connectionId === connectionId).isYourTurn}
-                            handleShot={handleShot}
-                            isYourBoard={false}
-                        />
-                        <button className='new-game-btn' onClick={handleSurrender}>
-                            Surrender
-                        </button>
-                    </div>
-                    {game.players.find(p => p.connectionId === connectionId).gameStatus === 'WON' && (
-                        <GameResultModal
-                            status='WON'
-                            header='You won!'
-                            description={
-                                game.players.find(p => p.connectionId !== connectionId).ships.length > 0
-                                    ? 'Opponent surrendered!'
-                                    : "You have destroyed all opponent's ships!"
-                            }
-                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length == 100 ? 'Next Level' : 'New Game'}
-                            handleButtonClick={game.players.find(p => p.connectionId === connectionId).cells.length == 100 ? handleGoToNextLevel : handleRestart}
-                        />
-                    )}
-                    {game.players.find(p => p.connectionId === connectionId).gameStatus === 'LOST' && (
-                        <GameResultModal
-                            status='LOST'
-                            header='You lost!'
-                            description={
-                                game.players.find(p => p.connectionId !== connectionId).ships.length > 0
-                                    ? 'You surrendered!'
-                                    : 'All of your ships have been destroyed!'
-                            }
-                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length == 100 ? 'Next Level' : 'New Game'}
-                            handleButtonClick={game.players.find(p => p.connectionId === connectionId).cells.length == 100 ? handleGoToNextLevel : handleRestart }
-                        />
-                    )}
-                    {game.gameStatus === 'TIME_OUT' && (
-                        <GameResultModal
-                            status='TIME_OUT'
-                            header='Time Up!'
-                            description='The game ended due to the time limit being reached.'
-                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length == 100 ? 'Next Level' : 'New Game'}
-                            handleButtonClick={handleRestart}
-                        />
-                    )}
-                </div>
+                <GameContext.Provider value={{ game, connectionId }}>
+                    <GameBoard 
+                        onShot={handleShot} 
+                        onSurrender={handleSurrender} 
+                        selectedShots={selectedShots}
+                    />
+                    {renderShotSelection()}
+                    <h1 className='time-remaining'>{formatTime(timeLeft)}</h1>
+                    <button onClick={handleGoToNextLevel} className='next-level-btn'>Go to Next Level</button>
+                    <GameResultModal 
+                        show={showHitPopup} 
+                        message={hitMessage} 
+                        onClose={() => setShowHitPopup(false)} 
+                    />
+                    <GameResultModal 
+                        show={showMissPopup} 
+                        message={missMessage} 
+                        onClose={() => setShowMissPopup(false)} 
+                    />
+                </GameContext.Provider>
             )}
-        </GameContext.Provider>
+        </div>
     );
 };
 
