@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import './styles.css'
 import React from 'react'
 
-const GameResultModal = ({status, header, description, handleButtonClick}) => {
+const GameResultModal = ({status, header, description, handleButtonClick, buttonText}) => {
   return (
     <div className='fixed top-0 left-0 w-full h-screen bg-black bg-opacity-50 flex items-center justify-center z-50'>
     <div className='relative flex flex-col px-6 py-4 bg-white w-11/12 sm:w-4/5 md:w-1/2 h-auto gap-10 rounded-md shadow-inner shadow-lg'>
@@ -18,7 +18,7 @@ const GameResultModal = ({status, header, description, handleButtonClick}) => {
 
         <button
          className='new-game-btn'
-         onClick={handleButtonClick}>New Game</button>
+         onClick={handleButtonClick}>{buttonText}</button>
     </div>
 </div>
   )

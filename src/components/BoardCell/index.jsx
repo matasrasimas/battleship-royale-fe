@@ -21,10 +21,18 @@ const BoardCell = ({rowIndex, colIndex, cell, handleShot, canShoot, isYourBoard}
     handleShot(shotCoords);
   };
 
+  const setBgColor = () => {
+    if(cell.isShip && isYourBoard)
+      return 'bg-blue-500'
+    if(cell.isIsland)
+      return 'bg-amber-700'
+    return 'bg-stone-300'
+  }
+
   return (
     <div
-     onClick={canShoot ? handleClick : null}
-     className={`flex items-center justify-center block w-full h-full border border-black ${!cell.isHit && canShoot && 'hover:bg-gray-400 cursor-pointer'} ${(cell.isShip && isYourBoard) ? 'bg-blue-500' : 'bg-gray-200'}`}
+     onClick={canShoot && !cell.isIsland  ? handleClick : null}
+     className={`flex items-center justify-center block w-full h-full border border-black ${!cell.isHit && canShoot && !cell.isIsland && 'hover:bg-gray-500 cursor-pointer'} ${setBgColor()}`}
      >
         {(cell.isHit && !cell.isShip) && (
           <FontAwesomeIcon icon={faCircle} />

@@ -10,6 +10,8 @@ import { text } from '@fortawesome/fontawesome-svg-core';
 
 const Home = () => {
     const apiUrl = 'http://localhost:5285/api/games';
+    const { id } = useParams();
+    const navigate = useNavigate();
 
     const [game, setGame] = useState(null);
     const [connectionId, setConnectionId] = useState(null);
@@ -18,12 +20,10 @@ const Home = () => {
     const [showErrorMessage, setShowErrorMessage] = useState(false);
     const [conn, setConnection] = useState();
 
-
     const [timeLeft, setTimeLeft] = useState(3600);
 
     const [messages, setMessages] = useState([]);
-    const { id } = useParams();
-    const navigate = useNavigate();
+    const [selectedShots, setSelectedShots] = useState(1); // State for selected shot count
 
     useEffect(() => {
         const getCurrentGame = async () => {
@@ -68,19 +68,18 @@ const Home = () => {
 
     const joinGame = async (gameId) => {
         try {
-            const conn = new HubConnectionBuilder()
+            const newConn = new HubConnectionBuilder()
                 .withUrl('http://localhost:5285/game')
                 .configureLogging(LogLevel.Information)
                 .build();
 
-            conn.on('GetYourConnectionId', (username, connId) => {
+            newConn.on('GetYourConnectionId', (username, connId) => {
                 setConnectionId(connId);
             });
 
-            conn.on('JoinSpecificGame', (username, joinedGame) => {
+            newConn.on('JoinSpecificGame', (username, joinedGame) => {
                 setShowErrorMessage(false);
                 setGame(joinedGame);
-
                 const initialTimeRemaining = typeof joinedGame.timeRemaining === 'number' && joinedGame.timeRemaining > 0
                     ? joinedGame.timeRemaining
                     : 3600;
@@ -89,26 +88,30 @@ const Home = () => {
                 setIsLoading(joinedGame.players.length < 2);
             });
 
-            conn.on('ReceiveGameAfterShot', (username, gameAfterShot) => {
+            newConn.on('ReceiveGameAfterShot', (username, gameAfterShot) => {
                 setGame(gameAfterShot);
             });
 
-            conn.on('ReceiveGameAfterSurrender', (username, gameAfterSurrender) => {
+            newConn.on('ReceiveGameAfterSurrender', (username, gameAfterSurrender) => {
                 setGame(gameAfterSurrender);
             });
 
-            conn.on('ReceiveMessage', (username, message) => {
+            newConn.on('ReceiveGameAfterGoToNextLevel', (username, gameAfterGoToNextLevel) => {
+                setGame(gameAfterGoToNextLevel);
+            });
+
+            newConn.on('ReceiveMessage', (username, message) => {
                 console.log("Received Message:", username, message);
                 setMessages((prevMessages) => [...prevMessages, { username, message }]);
             });
 
-            conn.on('JoinSpecificGameError', (username, errorMessage) => {
+            newConn.on('JoinSpecificGameError', (username, errorMessage) => {
                 setShowErrorMessage(true);
                 setErrorMessage(errorMessage);
                 setIsLoading(true);
             });
 
-            conn.on('ReceiveTimeUpdate', (timeRemaining) => {
+            newConn.on('ReceiveTimeUpdate', (timeRemaining) => {
                 if (typeof timeRemaining === 'number' && timeRemaining >= 0) {
                     setTimeLeft(timeRemaining);
                     if (timeRemaining === 0) {
@@ -117,11 +120,11 @@ const Home = () => {
                 }
             });
 
-            await conn.start();
-            await conn.invoke('GetConnectionId');
-            await conn.invoke('JoinSpecificGame', { connectionId: undefined, gameId });
+            await newConn.start();
+            await newConn.invoke('GetConnectionId');
+            await newConn.invoke('JoinSpecificGame', { connectionId: undefined, gameId });
 
-            setConnection(conn);
+            setConnection(newConn);
         } catch (e) {
             console.log(e);
         }
@@ -129,7 +132,7 @@ const Home = () => {
 
     const handleShot = async (shotCoords) => {
         try {
-            await conn.invoke('MakeShot', shotCoords);
+            await conn.invoke('MakeShot', shotCoords, selectedShots);
         } catch (e) {
             console.log(e);
         }
@@ -169,6 +172,14 @@ const Home = () => {
         navigate('/game');
     };
 
+    const handleGoToNextLevel = async () => {
+        try {
+            await conn.invoke('GoToNextLevel', { connectionId: undefined, gameId: id });
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
     useEffect(() => {
         if (game) {
             const timerInterval = setInterval(() => {
@@ -187,6 +198,19 @@ const Home = () => {
             return () => clearInterval(timerInterval);
         }
     }, [game, conn]);
+
+    // Function to calculate available shots based on game state
+    const calculateAvailableShots = () => {
+        if (!game || !connectionId) return 0;
+
+        const player = game.players.find(p => p.connectionId === connectionId);
+        if (!player) return 0;
+
+        const maxHitPoints = Math.max(...player.ships.map(ship => ship.hitPoints));
+        return maxHitPoints <= 1 ? 1 : (maxHitPoints <= 3 ? 2 : 3);
+    };
+
+    const availableShots = calculateAvailableShots();
 
     return (
         <GameContext.Provider value={{ setGame }}>
@@ -230,7 +254,25 @@ const Home = () => {
                         <button className='new-game-btn' onClick={handleSurrender}>
                             Surrender
                         </button>
+
+                        {/* Shot Count Selection */}
+                        {game.players.find(p => p.connectionId === connectionId).isYourTurn && (
+                            <div className='shot-selection'>
+                                {[1, 2, 3].map(numShots => (
+                                    availableShots >= numShots && (
+                                        <button
+                                            key={numShots}
+                                            className={`shot-icon ${selectedShots === numShots ? 'selected' : ''}`}
+                                            onClick={() => setSelectedShots(numShots)}
+                                        >
+                                            {numShots === 1 ? 'Single Shot' : numShots === 2 ? 'Double Shot' : 'Triple Shot'}
+                                        </button>
+                                    )
+                                ))}
+                            </div>
+                        )}
                         </div>
+
                         <div>
                             <h2 className='game-subhdr'>Chat</h2>
                             <Chat handleMessage={handleMessage} text={messages}/>
@@ -244,7 +286,8 @@ const Home = () => {
                                     ? 'Opponent surrendered!'
                                     : "You have destroyed all opponent's ships!"
                             }
-                            handleButtonClick={handleRestart}
+                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? 'Next Level' : 'New Game'}
+                            handleButtonClick={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? handleGoToNextLevel : handleRestart}
                         />
                     )}
                     {game.players.find(p => p.connectionId === connectionId).gameStatus === 'LOST' && (
@@ -256,7 +299,8 @@ const Home = () => {
                                     ? 'You surrendered!'
                                     : 'All of your ships have been destroyed!'
                             }
-                            handleButtonClick={handleRestart}
+                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? 'Next Level' : 'New Game'}
+                            handleButtonClick={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? handleGoToNextLevel : handleRestart}
                         />
                     )}
                     {game.gameStatus === 'TIME_OUT' && (
@@ -264,6 +308,7 @@ const Home = () => {
                             status='TIME_OUT'
                             header='Time Up!'
                             description='The game ended due to the time limit being reached.'
+                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? 'Next Level' : 'New Game'}
                             handleButtonClick={handleRestart}
                         />
                     )}
