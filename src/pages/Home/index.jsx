@@ -5,6 +5,8 @@ import GameBoard from '../../components/GameBoard';
 import GameContext from '../../GameContext';
 import GameResultModal from '../../components/GameResultModal';
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
+import  Chat  from '../../components/ChatBox';
+import { text } from '@fortawesome/fontawesome-svg-core';
 
 const Home = () => {
     const apiUrl = 'http://localhost:5285/api/games';
@@ -19,6 +21,8 @@ const Home = () => {
     const [conn, setConnection] = useState();
 
     const [timeLeft, setTimeLeft] = useState(3600);
+
+    const [messages, setMessages] = useState([]);
     const [selectedShots, setSelectedShots] = useState(1); // State for selected shot count
 
     useEffect(() => {
@@ -96,6 +100,11 @@ const Home = () => {
                 setGame(gameAfterGoToNextLevel);
             });
 
+            newConn.on('ReceiveMessage', (username, message) => {
+                console.log("Received Message:", username, message);
+                setMessages((prevMessages) => [...prevMessages, { username, message }]);
+            });
+
             newConn.on('JoinSpecificGameError', (username, errorMessage) => {
                 setShowErrorMessage(true);
                 setErrorMessage(errorMessage);
@@ -132,6 +141,14 @@ const Home = () => {
     const handleSurrender = async () => {
         try {
             await conn.invoke('HandleSurrender');
+        } catch (e) {
+            console.log(e);
+        }
+    };
+
+    const handleMessage = message => () => {
+        try {
+            conn.invoke('SendMessage', message);
         } catch (e) {
             console.log(e);
         }
@@ -254,8 +271,12 @@ const Home = () => {
                                 ))}
                             </div>
                         )}
-                    </div>
+                        </div>
 
+                        <div>
+                            <h2 className='game-subhdr'>Chat</h2>
+                            <Chat handleMessage={handleMessage} text={messages}/>
+                        </div>
                     {game.players.find(p => p.connectionId === connectionId).gameStatus === 'WON' && (
                         <GameResultModal
                             status='WON'
