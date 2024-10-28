@@ -18,7 +18,7 @@ const Home = () => {
     const [timeLeft, setTimeLeft] = useState(3600);
     const { id } = useParams();
     const navigate = useNavigate();
-    const [selectedShots, setSelectedShots] = useState(0);
+    const [selectedShots, setSelectedShots] = useState(1); // Initialize with a default value
 
     // New state for hit/miss messages
     const [hitMessage, setHitMessage] = useState('');
@@ -76,7 +76,7 @@ const Home = () => {
             newConn.on('JoinSpecificGame', (username, joinedGame) => handleGameJoin(joinedGame));
             newConn.on('ReceiveGameAfterShot', (username, gameAfterShot, shotResult) => {
                 setGame(gameAfterShot);
-                setSelectedShots(0); // Reset selected shots after making a shot
+                setSelectedShots(1); // Reset selected shots after making a shot
                 
                 // Determine if hit or miss
                 if (shotResult === 'hit') {
@@ -129,16 +129,34 @@ const Home = () => {
     };
 
     const handleShot = async (shotCoords) => {
+        // Ensure that selected shots is valid before proceeding
+        if (selectedShots <= 0) {
+            console.warn("No shots selected. Please select a valid number of shots before firing.");
+            return;
+        }
+    
+        // Ensure connection is established
+        if (!conn) {
+            console.error("No active connection. Unable to make a shot.");
+            setErrorMessage("Connection to the game server is missing.");
+            setShowErrorMessage(true);
+            return;
+        }
+    
         try {
-            for (let i = 0; i < selectedShots; i++) {
-                await conn.invoke('MakeShot', shotCoords); // Make a shot for each selected
-            }
-            setSelectedShots(0); // Reset selected shots after making a shot
+            console.info(`Attempting to make a shot with coordinates: ${JSON.stringify(shotCoords)} and selectedShots: ${selectedShots}`);
+            
+            // Invoke the MakeShot method on the server
+            await conn.invoke('MakeShot', shotCoords, selectedShots);
+    
+            console.info("Shot was successfully sent to the server.");
         } catch (e) {
-            console.error('Error making shot: ', e);
+            console.error("Error making shot: ", e);
+            setErrorMessage("Failed to make the shot. Please try again.");
+            setShowErrorMessage(true);
         }
     };
-
+    
     const handleSurrender = async () => {
         try {
             await conn.invoke('HandleSurrender');
