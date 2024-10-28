@@ -87,6 +87,12 @@ const Home = () => {
                     setShowMissPopup(true);
                 }
             });
+
+            // Integrate additional listener for going to next level
+            newConn.on('ReceiveGameAfterGoToNextLevel', (username, gameAfterGoToNextLevel) => {
+                setGame(gameAfterGoToNextLevel);
+            });
+
             newConn.on('ReceiveGameAfterSurrender', (username, gameAfterSurrender) => setGame(gameAfterSurrender));
             newConn.on('JoinSpecificGameError', (username, errorMessage) => handleError(errorMessage));
             newConn.on('ReceiveTimeUpdate', (timeRemaining) => handleTimeUpdate(timeRemaining));
@@ -175,6 +181,14 @@ const Home = () => {
         navigate('/game');
     };
 
+    const handleGoToNextLevel = async () => {
+        try {
+            await conn.invoke('GoToNextLevel', { connectionId: undefined, gameId: id });
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
     useEffect(() => {
         let timerInterval;
         if (game) {
@@ -242,7 +256,7 @@ const Home = () => {
                         className={`shot-icon ${selectedShots === 2 ? 'selected' : ''}`}
                         onClick={() => setSelectedShots(2)}
                     >
-                        Doubleshot
+                        Double shot
                     </button>
                 )}
                 {availableShots >= 3 && (
@@ -250,114 +264,45 @@ const Home = () => {
                         className={`shot-icon ${selectedShots === 3 ? 'selected' : ''}`}
                         onClick={() => setSelectedShots(3)}
                     >
-                        Tripleshot
+                        Triple shot
                     </button>
                 )}
             </div>
         );
     };
 
-    // Helper to render game boards
-    const renderGameBoards = () => (
-        <div className='flex flex-col items-center w-full'>
-            <GameBoard
-                cells={game.players.find(p => p.connectionId === connectionId)?.cells}
-                canShoot={false}
-                handleShot={handleShot}
-                isYourBoard={true}
-            />
-            <GameBoard
-                cells={game.players.find(p => p.connectionId !== connectionId)?.cells}
-                canShoot={game.players.find(p => p.connectionId === connectionId)?.isYourTurn}
-                handleShot={handleShot}
-                isYourBoard={false}
-            />
-            <button className='new-game-btn' onClick={handleSurrender}>Surrender</button>
-        </div>
-    );
-
-    // Helper to render game results
-    const renderGameResults = () => {
-        const player = game.players.find(p => p.connectionId === connectionId);
-        if (player?.gameStatus === 'WON') {
-            return (
-                <GameResultModal
-                    status='WON'
-                    header='You won!'
-                    description={player.ships.length > 0 ? 'Opponent surrendered!' : "You have destroyed all opponent's ships!"}
-                    handleButtonClick={handleRestart}
-                />
-            );
-        }
-        if (player?.gameStatus === 'LOST') {
-            return (
-                <GameResultModal
-                    status='LOST'
-                    header='You lost!'
-                    description={player.ships.length > 0 ? 'You surrendered!' : 'All of your ships have been destroyed!'}
-                    handleButtonClick={handleRestart}
-                />
-            );
-        }
-        if (game?.gameStatus === 'TIME_OUT') {
-            return (
-                <GameResultModal
-                    status='TIME_OUT'
-                    header='Time Up!'
-                    description='The game ended due to the time limit being reached.'
-                    handleButtonClick={handleRestart}
-                />
-            );
-        }
-        return null;
-    };
-
-    // Render hit/miss popups
-    const renderHitMissPopup = () => {
-        if (showHitPopup) {
-            return (
-                <div className='popup'>
-                    <h2>{hitMessage}</h2>
-                    <button onClick={() => setShowHitPopup(false)}>Close</button>
-                </div>
-            );
-        }
-        if (showMissPopup) {
-            return (
-                <div className='popup'>
-                    <h2>{missMessage}</h2>
-                    <button onClick={() => setShowMissPopup(false)}>Close</button>
-                </div>
-            );
-        }
-        return null;
-    };
+    // Conditional rendering for error messages
+    if (showErrorMessage) {
+        return renderErrorMessage();
+    }
 
     return (
-        <GameContext.Provider value={{ setGame }}>
+        <div className='game-container'>
             {isLoading ? (
-                <div className='flex flex-col gap-5 m-5'>
-                    {showErrorMessage ? renderErrorMessage() : <h1 className='game-hdr'>Finding Opponent...</h1>}
-                </div>
+                <h1 className='loading-text'>Loading...</h1>
             ) : (
-                <div className='flex flex-col gap-5 m-5 w-full items-center'>
-                    <div className='flex flex-col w-full items-center justify-center'>
-                        <h1 className='game-hdr'>Battleship Game</h1>
-                        <h2 className='game-subhdr'>
-                            {game.players.find(p => p.connectionId === connectionId)?.isYourTurn
-                                ? 'Your turn'
-                                : "Opponent's turn"}
-                        </h2>
-                        <h2 className='game-timer'>Time left: {formatTime(timeLeft)}</h2>
-                        <h2 className='game-shots'>Available Shots: {availableShots}</h2>
-                    </div>
+                <GameContext.Provider value={{ game, connectionId }}>
+                    <GameBoard 
+                        onShot={handleShot} 
+                        onSurrender={handleSurrender} 
+                        selectedShots={selectedShots}
+                    />
                     {renderShotSelection()}
-                    {renderGameBoards()}
-                    {renderHitMissPopup()}
-                    {renderGameResults()}
-                </div>
+                    <h1 className='time-remaining'>{formatTime(timeLeft)}</h1>
+                    <button onClick={handleGoToNextLevel} className='next-level-btn'>Go to Next Level</button>
+                    <GameResultModal 
+                        show={showHitPopup} 
+                        message={hitMessage} 
+                        onClose={() => setShowHitPopup(false)} 
+                    />
+                    <GameResultModal 
+                        show={showMissPopup} 
+                        message={missMessage} 
+                        onClose={() => setShowMissPopup(false)} 
+                    />
+                </GameContext.Provider>
             )}
-        </GameContext.Provider>
+        </div>
     );
 };
 
