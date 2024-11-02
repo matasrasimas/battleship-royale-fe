@@ -120,6 +120,10 @@ const Home = () => {
                 }
             });
 
+            newConn.on('ReceiveGameAfterCommand', (gameAfterCommand) => {
+                setGame(gameAfterCommand);
+            });
+
             await newConn.start();
             await newConn.invoke('GetConnectionId');
             await newConn.invoke('JoinSpecificGame', { connectionId: undefined, gameId });
@@ -175,6 +179,14 @@ const Home = () => {
     const handleGoToNextLevel = async () => {
         try {
             await conn.invoke('GoToNextLevel', { connectionId: undefined, gameId: id });
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    const handleResume = async () => {
+        try {
+            await conn.invoke("SendMessage", "/undo");
         } catch (e) {
             console.log(e);
         }
@@ -311,6 +323,24 @@ const Home = () => {
                             description='The game ended due to the time limit being reached.'
                             buttonText={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? 'Next Level' : 'New Game'}
                             handleButtonClick={handleRestart}
+                        />
+                    )}
+                    {game.players.find(p => p.connectionId === connectionId).gameStatus ===  'PAUSED_HOST' && (
+                        <GameResultModal
+                            status='PAUSED_HOST'
+                            header='Game Paused'
+                            description='The game has been paused by you.'
+                            buttonText='Resume'
+                            handleButtonClick={handleResume}
+                        />
+                    )}
+                    {game.players.find(p => p.connectionId === connectionId).gameStatus ===  'PAUSED' && (
+                        <GameResultModal
+                            status='PAUSED_GUEST'
+                            header='Game Paused'
+                            description='The game has been paused by your opponent.'
+                            buttonText='Wait'
+                            handleButtonClick={() => {}}
                         />
                     )}
                 </div>
