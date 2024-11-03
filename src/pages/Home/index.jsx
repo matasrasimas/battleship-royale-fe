@@ -77,6 +77,15 @@ const Home = () => {
                 setConnectionId(connId);
             });
 
+            newConn.on('ReceiveTimeUpdate', (timeRemaining) => {
+                if (typeof timeRemaining === 'number' && timeRemaining >= 0) {
+                    setTimeLeft(timeRemaining);
+                    if (timeRemaining === 0) {
+                        endGameDueToTimeOut();
+                    }
+                }
+            });
+
             newConn.on('JoinSpecificGame', (username, joinedGame) => {
                 setShowErrorMessage(false);
                 setGame(joinedGame);
