@@ -39,10 +39,52 @@ button.restart-btn:hover {
     color: yellow;
 }
 
+/* Fleet Selection */
+.fleet-selection {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap; /* Ensures buttons wrap to next line if needed */
+    justify-content: center; /* Centers the fleet buttons */
+}
+
+.fleet-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    flex-shrink: 0; /* Prevents buttons from shrinking */
+    margin: 5px;
+}
+
+.fleet-btn:hover {
+    background-color: #0056b3;
+}
+
+.fleet-btn.selected {
+    background-color: #28a745; /* Green background when selected */
+    font-weight: bold;
+}
+
+.fleet-btn:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+
+.fleet-btn:active {
+    background-color: #0056b3;
+}
+
+/* Shot Selection */
 .shot-selection {
     display: flex;
     gap: 10px;
     margin: 20px 0;
+    justify-content: center; /* Centers the shot selection buttons */
 }
 
 .shot-icon {
@@ -54,6 +96,7 @@ button.restart-btn:hover {
     font-size: 30px; /* Size for the emoji */
     cursor: pointer;
     transition: background-color 0.3s, transform 0.2s;
+    flex-shrink: 0; /* Prevents buttons from shrinking */
 }
 
 .shot-icon.selected {
@@ -95,6 +138,7 @@ button.restart-btn:hover {
     background-color: #0056b3; /* Darker blue on hover */
 }
 
+/* Game Timer and Shots Display */
 .game-timer,
 .game-shots {
     font-size: 18px;
