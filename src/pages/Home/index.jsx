@@ -26,6 +26,7 @@ const Home = () => {
   const [selectedShots, setSelectedShots] = useState(1); // State for selected shot count
   const [fleetMoved, setFleetMoved] = useState(false);
 
+
   useEffect(() => {
     const getCurrentGame = async () => {
       setIsLoading(true);
@@ -66,6 +67,30 @@ const Home = () => {
       }
     };
   }, [id]);
+
+  useEffect(() => {
+    if (conn) {
+      // Listen for the LogMessage event
+      conn.on("LogMessage", (message) => {
+        console.log(message); // Log it to the console, or handle it as needed
+        // You can append the message to your UI, for example:
+        setMessages((prevMessages) => [...prevMessages, message]);
+      });
+  
+      // You can also handle other events, such as ShipsMoved
+      conn.on("ShipsMoved", (hitPoints) => {
+        console.log(`Ships have been moved by ${hitPoints} hit points.`);
+      });
+    }
+  
+    return () => {
+      // Clean up on component unmount
+      if (conn) {
+        conn.off("LogMessage");
+        conn.off("ShipsMoved");
+      }
+    };
+  }, [conn]);
 
   useEffect(() => {
     if (game) {
@@ -178,15 +203,16 @@ const Home = () => {
     if (conn && game && !fleetMoved) {
       console.log("Game Players:", game.players);
       console.log("Current Connection ID:", connectionId);
-      const currentPlayer = game.players.find(
-        (p) => p.connectionId === connectionId
-      );
-      const playerId = currentPlayer ? currentPlayer.id : null;
-  
+      
+      const currentPlayer = game.players.find((p) => p.connectionId === connectionId);
+      
+      const playerId = currentPlayer ? currentPlayer.connectionId : null;
+      
       if (playerId) {
         try {
           await conn.invoke("MoveShipsByHitPoints", playerId, hitPoints);
           console.log(`Moved ships by ${hitPoints} hit points for player ${playerId}`);
+          
           setFleetMoved(true);
         } catch (e) {
           console.log("Error while moving ships:", e);
@@ -196,7 +222,6 @@ const Home = () => {
       }
     }
   };
-  
 
   const handleSurrender = async () => {
     try {
