@@ -176,15 +176,27 @@ const Home = () => {
 
   const handleMoveShips = async (hitPoints) => {
     if (conn && game && !fleetMoved) {
-      try {
-        await conn.invoke("MoveShipsByHitPoints", hitPoints);
-        console.log(`Moved ships by ${hitPoints} hit points`);
-        setFleetMoved(true);
-      } catch (e) {
-        console.log("Error while moving ships:", e);
+      console.log("Game Players:", game.players);
+      console.log("Current Connection ID:", connectionId);
+      const currentPlayer = game.players.find(
+        (p) => p.connectionId === connectionId
+      );
+      const playerId = currentPlayer ? currentPlayer.id : null;
+  
+      if (playerId) {
+        try {
+          await conn.invoke("MoveShipsByHitPoints", playerId, hitPoints);
+          console.log(`Moved ships by ${hitPoints} hit points for player ${playerId}`);
+          setFleetMoved(true);
+        } catch (e) {
+          console.log("Error while moving ships:", e);
+        }
+      } else {
+        console.error("Player ID is undefined.");
       }
     }
   };
+  
 
   const handleSurrender = async () => {
     try {
@@ -249,7 +261,6 @@ const Home = () => {
             return 0;
           }
           const newTimeLeft = prevTimeLeft - 1;
-          conn?.invoke("UpdateTimeRemaining", newTimeLeft);
           return newTimeLeft;
         });
       }, 1000);
