@@ -32,7 +32,7 @@ const BoardCell = ({ rowIndex, colIndex, cell, handleShot, canShoot, isYourBoard
   return (
     <div
       onClick={canShoot && !cell.isIsland ? handleClick : null}
-      className={`flex items-center justify-center block w-full h-full border border-black ${!cell.isHit && canShoot && !cell.isIsland && 'hover:bg-gray-500 cursor-pointer'} ${setBgColor()}`}
+      className={`shipBox border border-black ${!cell.isHit && canShoot && !cell.isIsland && 'hover:bg-gray-500 cursor-pointer'} ${setBgColor()}`}
     >
       {isYourBoard && cell.isShip && !cell.isHit && (
         <img src={`${cell.imagePath}`} width={50} height={34} alt='ship' />
