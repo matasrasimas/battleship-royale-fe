@@ -7,6 +7,7 @@ import GameResultModal from '../../components/GameResultModal';
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import  Chat  from '../../components/ChatBox';
 import { text } from '@fortawesome/fontawesome-svg-core';
+import { faCircleInfo, faCirclePause, faFaceSadTear, faFaceSmile, faSmile } from '@fortawesome/free-solid-svg-icons';
 
 const Home = () => {
     const apiUrl = 'http://localhost:5285/api/games';
@@ -301,7 +302,8 @@ const Home = () => {
                         </div>
                     {game.players.find(p => p.connectionId === connectionId).gameStatus === 'WON' && (
                         <GameResultModal
-                            status='WON'
+                            iconName={faFaceSmile}
+                            iconColor='text-lime-600 border-lime-600'
                             header='You won!'
                             description={
                                 game.players.find(p => p.connectionId !== connectionId).ships.length > 0
@@ -314,7 +316,8 @@ const Home = () => {
                     )}
                     {game.players.find(p => p.connectionId === connectionId).gameStatus === 'LOST' && (
                         <GameResultModal
-                            status='LOST'
+                            iconName={faFaceSadTear}
+                            iconColor='text-red-600 border-red-600'
                             header='You lost!'
                             description={
                                 game.players.find(p => p.connectionId !== connectionId).ships.length > 0
@@ -327,7 +330,8 @@ const Home = () => {
                     )}
                     {game.gameStatus === 'TIME_OUT' && (
                         <GameResultModal
-                            status='TIME_OUT'
+                            iconName={faFaceSadTear}
+                            iconColor='text-black'
                             header='Time Up!'
                             description='The game ended due to the time limit being reached.'
                             buttonText={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? 'Next Level' : 'New Game'}
@@ -336,7 +340,8 @@ const Home = () => {
                     )}
                     {game.players.find(p => p.connectionId === connectionId).gameStatus ===  'PAUSED_HOST' && (
                         <GameResultModal
-                            status='PAUSED_HOST'
+                            iconName={faCirclePause}
+                            iconColor='text-cyan-600 border-cyan-600'
                             header='Game Paused'
                             description='The game has been paused by you.'
                             buttonText='Resume'
@@ -345,7 +350,8 @@ const Home = () => {
                     )}
                     {game.players.find(p => p.connectionId === connectionId).gameStatus ===  'PAUSED' && (
                         <GameResultModal
-                            status='PAUSED_GUEST'
+                            iconName={faCirclePause}
+                            iconColor='text-cyan-600 border-cyan-600'
                             header='Game Paused'
                             description='The game has been paused by your opponent.'
                             buttonText='Wait'
