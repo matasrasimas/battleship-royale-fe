@@ -146,6 +146,7 @@ const Home = () => {
 
     const handleShot = async (shotCoords) => {
         try {
+            console.log(game.players)
             await conn.invoke('MakeShot', shotCoords, selectedShots);
         } catch (e) {
             console.log(e);
@@ -260,6 +261,12 @@ const Home = () => {
                         </h2>
                         <h2>Your Points: {game.players.find(p => p.connectionId === connectionId).points}</h2>
                         <h2 className='game-timer'>Time left: {formatTime(timeLeft)}</h2>
+                        {game.players.find(p => p.connectionId === connectionId).isYourTurn ? (
+                            <h2 className='game-timer'>Shots remaining: {game.players.find(p => p.connectionId === connectionId).shotsRemaining}</h2>
+                        ) : (
+                            <h2 className='game-timer text-white'>Placeholder</h2>
+                        )}
+                        
                     </div>
                     <div className='flex flex-col items-center w-full'>
                         <GameBoard
