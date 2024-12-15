@@ -7,6 +7,7 @@ import GameResultModal from "../../components/GameResultModal";
 import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 import Chat from "../../components/ChatBox";
 import { text } from "@fortawesome/fontawesome-svg-core";
+import { faCircleInfo, faCirclePause, faFaceSadTear, faFaceSmile, faSmile } from '@fortawesome/free-solid-svg-icons';
 
 const Home = () => {
   const apiUrl = "http://localhost:5285/api/games";
@@ -68,47 +69,12 @@ const Home = () => {
     };
   }, [id]);
 
-  useEffect(() => {
-    if (conn) {
-      // Listen for the LogMessage event
-      conn.on("LogMessage", (message) => {
-        console.log(message); // Log it to the console, or handle it as needed
-        // You can append the message to your UI, for example:
-        setMessages((prevMessages) => [...prevMessages, message]);
-      });
-  
-      // You can also handle other events, such as ShipsMoved
-      conn.on("ShipsMoved", (hitPoints) => {
-        console.log(`Ships have been moved by ${hitPoints} hit points.`);
-      });
-    }
-  
-    return () => {
-      // Clean up on component unmount
-      if (conn) {
-        conn.off("LogMessage");
-        conn.off("ShipsMoved");
-      }
-    };
-  }, [conn]);
-
-  useEffect(() => {
-    if (game) {
-      const currentPlayer = game.players.find(
-        (p) => p.connectionId === connectionId
-      );
-      if (currentPlayer && currentPlayer.isYourTurn) {
-        setFleetMoved(false);
-      }
-    }
-  }, [game, connectionId]);
-
-  const joinGame = async (gameId) => {
-    try {
-      const newConn = new HubConnectionBuilder()
-        .withUrl("http://localhost:5285/game")
-        .configureLogging(LogLevel.Information)
-        .build();
+    const joinGame = async (gameId) => {
+        try {
+            const newConn = new HubConnectionBuilder()
+                .withUrl('http://localhost:5285/game')
+                .configureLogging(LogLevel.Information)
+                .build();
 
       newConn.on("GetYourConnectionId", (username, connId) => {
         setConnectionId(connId);
@@ -276,19 +242,20 @@ const Home = () => {
     }
   };
 
-  useEffect(() => {
-    if (game) {
-      const timerInterval = setInterval(() => {
-        setTimeLeft((prevTimeLeft) => {
-          if (prevTimeLeft <= 1) {
-            clearInterval(timerInterval);
-            endGameDueToTimeOut();
-            return 0;
-          }
-          const newTimeLeft = prevTimeLeft - 1;
-          return newTimeLeft;
-        });
-      }, 1000);
+    useEffect(() => {
+        if (game) {
+            const timerInterval = setInterval(() => {
+                setTimeLeft(prevTimeLeft => {
+                    if (prevTimeLeft <= 1) {
+                        clearInterval(timerInterval);
+                        endGameDueToTimeOut();
+                        return 0;
+                    }
+                    const newTimeLeft = prevTimeLeft - 1;
+                    conn?.invoke('UpdateTimeRemaining', newTimeLeft);
+                    return newTimeLeft;
+                });
+            }, 1000);
 
       return () => clearInterval(timerInterval);
     }
@@ -303,6 +270,184 @@ const Home = () => {
 
     const maxHitPoints = Math.max(
       ...player.ships.map((ship) => ship.hitPoints)
+    );
+    return maxHitPoints <= 1 ? 1 : maxHitPoints <= 3 ? 2 : 3;
+  };
+
+  const availableShots = calculateAvailableShots();
+
+  return (
+    <GameContext.Provider value={{ setGame }}>
+      {isLoading ? (
+        <div className="flex flex-col gap-5 m-5">
+          {showErrorMessage ? (
+            <div className="flex flex-col w-full items-center gap-5">
+              <h1 className="game-hdr">{errorMessage}</h1>
+              <button onClick={handleRestart} className="restart-btn">
+                Find new game
+              </button>
+            </div>
+          ) : (
+            <h1 className="game-hdr">Finding Opponent...</h1>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-5 m-5 w-full items-center content-center">
+          <div className="flex flex-col w-full items-center justify-center">
+            <h1 className="game-hdr">Battleship Game</h1>
+            <h2 className="game-subhdr">
+              {game.players.find((p) => p.connectionId === connectionId)
+                .isYourTurn
+                ? "Your turn"
+                : "Opponent's turn"}
+            </h2>
+            <h2>
+              Your Points:{" "}
+              {game.players.find((p) => p.connectionId === connectionId).points}
+            </h2>
+            <h2 className="game-timer">Time left: {formatTime(timeLeft)}</h2>
+          </div>
+          <div className="flex flex-col items-center w-full">
+            <GameBoard
+              cells={
+                game.players.find((p) => p.connectionId === connectionId).cells
+              }
+              canShoot={false}
+              handleShot={handleShot}
+              isYourBoard={true}
+            />
+            <GameBoard
+              cells={
+                game.players.find((p) => p.connectionId !== connectionId).cells
+              }
+              canShoot={
+                game.players.find((p) => p.connectionId === connectionId)
+                  .isYourTurn
+              }
+              handleShot={handleShot}
+              isYourBoard={false}
+            />
+            <button className="new-game-btn" onClick={handleSurrender}>
+              Surrender
+            </button>
+
+            {/* Shot Count Selection */}
+            {game.players.find((p) => p.connectionId === connectionId)
+              .isYourTurn && (
+              <div className="shot-selection">
+                {[1, 2, 3].map(
+                  (numShots) =>
+                    availableShots >= numShots && (
+                      <button
+                        key={numShots}
+                        className={`shot-icon ${
+                          selectedShots === numShots ? "selected" : ""
+                        }`}
+                        onClick={() => setSelectedShots(numShots)}
+                      >
+                        {numShots === 1
+                          ? "Single Shot"
+                          : numShots === 2
+                          ? "Double Shot"
+                          : "Triple Shot"}
+                      </button>
+                    )
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="fleet-selection">
+            {game.players
+              .find((p) => p.connectionId === connectionId)
+              .ships.reduce((uniqueHitPoints, ship) => {
+                if (!uniqueHitPoints.includes(ship.hitPoints)) {
+                  uniqueHitPoints.push(ship.hitPoints);
+                }
+                return uniqueHitPoints;
+              }, [])
+              .map((hitPoints) => (
+                <button
+                  key={hitPoints}
+                  className={`fleet-btn ${
+                    selectedShots === hitPoints ? "selected" : ""
+                  }`}
+                  onClick={() => handleMoveShips(hitPoints)}
+                  disabled={
+                    !game.players.find((p) => p.connectionId === connectionId)
+                      .isYourTurn || fleetMoved
+                  }
+                >
+                  {`Move ${hitPoints} HP Fleet`}
+                </button>
+              ))}
+          </div>
+
+                        <div>
+                            <h2 className='game-subhdr'>Chat</h2>
+                            <Chat handleMessage={handleMessage} text={messages}/>
+                        </div>
+                    {game.players.find(p => p.connectionId === connectionId).gameStatus === 'WON' && (
+                        <GameResultModal
+                            iconName={faFaceSmile}
+                            iconColor='text-lime-600 border-lime-600'
+                            header='You won!'
+                            description={
+                                game.players.find(p => p.connectionId !== connectionId).ships.length > 0
+                                    ? 'Opponent surrendered!'
+                                    : "You have destroyed all opponent's ships!"
+                            }
+                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? 'Next Level' : 'New Game'}
+                            handleButtonClick={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? handleGoToNextLevel : handleRestart}
+                        />
+                    )}
+                    {game.players.find(p => p.connectionId === connectionId).gameStatus === 'LOST' && (
+                        <GameResultModal
+                            iconName={faFaceSadTear}
+                            iconColor='text-red-600 border-red-600'
+                            header='You lost!'
+                            description={
+                                game.players.find(p => p.connectionId !== connectionId).ships.length > 0
+                                    ? 'You surrendered!'
+                                    : 'All of your ships have been destroyed!'
+                            }
+                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? 'Next Level' : 'New Game'}
+                            handleButtonClick={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? handleGoToNextLevel : handleRestart}
+                        />
+                    )}
+                    {game.gameStatus === 'TIME_OUT' && (
+                        <GameResultModal
+                            iconName={faFaceSadTear}
+                            iconColor='text-black'
+                            header='Time Up!'
+                            description='The game ended due to the time limit being reached.'
+                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? 'Next Level' : 'New Game'}
+                            handleButtonClick={handleRestart}
+                        />
+                    )}
+                    {game.players.find(p => p.connectionId === connectionId).gameStatus ===  'PAUSED_HOST' && (
+                        <GameResultModal
+                            iconName={faCirclePause}
+                            iconColor='text-cyan-600 border-cyan-600'
+                            header='Game Paused'
+                            description='The game has been paused by you.'
+                            buttonText='Resume'
+                            handleButtonClick={handleResume}
+                        />
+                    )}
+                    {game.players.find(p => p.connectionId === connectionId).gameStatus ===  'PAUSED' && (
+                        <GameResultModal
+                            iconName={faCirclePause}
+                            iconColor='text-cyan-600 border-cyan-600'
+                            header='Game Paused'
+                            description='The game has been paused by your opponent.'
+                            buttonText='Wait'
+                            handleButtonClick={() => {}}
+                        />
+                    )}
+                </div>
+            )}
+        </GameContext.Provider>
     );
     return maxHitPoints <= 1 ? 1 : maxHitPoints <= 3 ? 2 : 3;
   };

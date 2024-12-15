@@ -13,3 +13,21 @@ body, html {
     padding: 0;
     overflow-x: hidden;
   }
+
+img {
+    max-width:100%;
+    max-height:100%;
+    margin:0 auto;
+}
+.shipBox {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    text-align: center;
+    vertical-align: middle;
+    align-items: center;
+}
+.svg-inline--fa {
+    margin: 0 auto;
+    display: block;
+}
