@@ -373,6 +373,28 @@ const Home = () => {
                                 ))}
                             </div>
                         )}
+                        {game.players.find((p) => p.connectionId === connectionId)
+              .isYourTurn && (
+              <div className="hitpoint-selection">
+                {[1, 2, 3, 4].map((num) => (
+                  <button
+                    key={num}
+                    className={`hitpoint-button ${
+                      selectedHitPoints === num ? "selected" : ""
+                    }`}
+                    onClick={() => setSelectedHitPoints(num)}
+                  >
+                    {num} Hit Points
+                  </button>
+                ))}
+              </div>
+            )}
+
+                  {game.players.find((p) => p.connectionId === connectionId)
+                  .isYourTurn && (
+                  <button className="move-fleet-btn" onClick={handleMoveFleet}>
+                  Move Fleet with {selectedHitPoints} Hit Points
+                  </button>)}
                         </div>
 
                         <div>
