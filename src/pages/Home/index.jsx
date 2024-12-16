@@ -119,6 +119,11 @@ const Home = () => {
         setGame(gameAfterShot);
       });
 
+      newConn.on("AppliedSkin", (game) => {
+        console.log(game);
+        setGame(game);
+      });
+
       newConn.on(
         "ReceiveGameAfterSurrender",
         (username, gameAfterSurrender) => {
@@ -200,6 +205,16 @@ const Home = () => {
   const handleSurrender = async () => {
     try {
       await conn.invoke("HandleSurrender");
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  const handleSkinChange = async (skinType) => {
+    try {
+      console.log(skinType)
+      console.log(game);
+      await conn.invoke("ChangeShipSkin", skinType);
     } catch (e) {
       console.log(e);
     }
@@ -330,6 +345,31 @@ const Home = () => {
                         </h2>
                         <h2>Your Points: {game?.players.find(p => p.connectionId === connectionId).points}</h2>
                         <h2 className='game-timer'>Time left: {formatTime(timeLeft)}</h2>
+                        <div className="flex justify-center gap-4 mt-10">
+                        {/* Skin 1 Button with Blue Background */}
+                        <button
+                          className="px-6 py-3 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600"
+                          onClick={() => handleSkinChange(1)}
+                        >
+                          Skin 1
+                        </button>
+
+                        {/* Skin 2 Button with Green Background */}
+                        <button
+                          className="px-6 py-3 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600"
+                          onClick={() => handleSkinChange(2)}
+                        >
+                          Skin 2
+                        </button>
+
+                        {/* Skin 3 Button with Red Background */}
+                        <button
+                          className="px-6 py-3 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600"
+                          onClick={() => handleSkinChange(3)}
+                        >
+                          Skin 3
+                        </button>
+                      </div>
                     </div>
                     <div className='flex flex-col items-center w-full'>
                         <GameBoard
