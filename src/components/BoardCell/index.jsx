@@ -23,7 +23,7 @@ const BoardCell = ({ rowIndex, colIndex, cell, handleShot, canShoot, isYourBoard
 
   const setBgColor = () => {
     if (cell.isShip && isYourBoard)
-      return 'bg-blue-500'
+      return !cell.color ? 'bg-blue-500' : '';
     if (cell.isIsland)
       return 'bg-amber-700'
     return 'bg-stone-300'
@@ -32,6 +32,7 @@ const BoardCell = ({ rowIndex, colIndex, cell, handleShot, canShoot, isYourBoard
   return (
     <div
       onClick={canShoot && !cell.isIsland ? handleClick : null}
+      style={{ backgroundColor: cell.color && isYourBoard ?  cell.color : ''}}
       className={`shipBox border border-black ${!cell.isHit && canShoot && !cell.isIsland && 'hover:bg-gray-500 cursor-pointer'} ${setBgColor()}`}
     >
       {isYourBoard && cell.isShip && !cell.isHit && (
