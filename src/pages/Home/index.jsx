@@ -20,12 +20,15 @@ const Home = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [game, setGame] = useState(null);
-  const [connectionId, setConnectionId] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [showErrorMessage, setShowErrorMessage] = useState(false);
-  const [conn, setConnection] = useState();
+    const [game, setGame] = useState(null);
+    const [connectionId, setConnectionId] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [showErrorMessage, setShowErrorMessage] = useState(false);
+    const [conn, setConnection] = useState();
+    const [gameSaveMsg, setGameSaveMsg] = useState("false");
+    const [gameSaveCode, setgameSaveCode] = useState(0);
+    const [gameBackup, setGameBackup] = useState();
 
   const [timeLeft, setTimeLeft] = useState(3600);
 
@@ -33,27 +36,28 @@ const Home = () => {
   const [selectedShots, setSelectedShots] = useState(1); // State for selected shot count
   const [selectedHitPoints, setSelectedHitPoints] = useState(1); // Default to 1 hit point
 
-  useEffect(() => {
-    const getCurrentGame = async () => {
-      setIsLoading(true);
-      if (typeof id === "undefined") {
-        try {
-          const response = await fetch(apiUrl, {
-            method: "POST",
-            credentials: "include",
-          });
-          const data = await response.json();
-          if (response.status === 500) {
-            setShowErrorMessage(true);
-            setErrorMessage(data.message);
-          } else {
-            setShowErrorMessage(false);
-            navigate(`/game/${data}`);
-          }
-        } catch (error) {
-          console.error("An error occurred: ", error);
-        }
-      }
+    useEffect(() => {
+        const getCurrentGame = async () => {
+            setIsLoading(true);
+            setgameSaveCode(0);
+            if (typeof id === 'undefined') {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        credentials: 'include',
+                    });
+                    const data = await response.json();
+                    if (response.status === 500) {
+                        setShowErrorMessage(true);
+                        setErrorMessage(data.message);
+                    } else {
+                        setShowErrorMessage(false);
+                        navigate(`/game/${data}`);
+                    }
+                } catch (error) {
+                    console.error('An error occurred: ', error);
+                }
+            }
 
       if (typeof id !== "undefined") {
         try {
@@ -122,12 +126,21 @@ const Home = () => {
         }
       );
 
-      newConn.on(
-        "ReceiveGameAfterGoToNextLevel",
-        (username, gameAfterGoToNextLevel) => {
-          setGame(gameAfterGoToNextLevel);
-        }
-      );
+            newConn.on('ReceiveGameAfterGoToNextLevel', (username, gameAfterGoToNextLevel) => {
+                setGame(gameAfterGoToNextLevel);
+            });
+
+            newConn.on('ReceiveGameAfterUndoWithSnapshot', (gameAfterUndo, msg) => {
+                if(gameSaveCode === 1){
+                    setGameSaveMsg(msg);
+                }
+                setGame(gameAfterUndo);
+            });
+
+            newConn.on('SnapshotSaved', (msg) => {
+                setGameSaveMsg(msg);
+                setGameBackup(game);
+            });
 
       newConn.on("ReceiveMessage", (username, message) => {
         console.log("Received Message:", username, message);
@@ -192,13 +205,33 @@ const Home = () => {
     }
   };
 
-  const handleMessage = (message) => () => {
-    try {
-      conn.invoke("SendMessage", message);
-    } catch (e) {
-      console.log(e);
-    }
-  };
+    const handleMessage = message => () => {
+        try {
+            conn.invoke('SendMessage', message);
+        } catch (e) {
+            console.log(e);
+        }
+    };
+
+    const handleSaveGame = async () => {
+        try {
+            await conn.invoke('SnapshotGame');
+            console.log(game);
+            setGameBackup(game);
+            setgameSaveCode(1);
+        } catch (e) {
+            console.log(e);
+        }
+    };
+
+    const handleLoadSaveGame = async () => {
+        try {
+            await conn.invoke('UndoWithSnapshotGame', gameBackup);
+            setgameSaveCode(2);
+        } catch (e) {
+            console.log(e);
+        }
+    };
 
   const endGameDueToTimeOut = () => {
     setGame((prevGame) => ({
@@ -271,213 +304,143 @@ const Home = () => {
 
   const availableShots = calculateAvailableShots();
 
-  return (
-    <GameContext.Provider value={{ setGame }}>
-      {isLoading ? (
-        <div className="flex flex-col gap-5 m-5">
-          {showErrorMessage ? (
-            <div className="flex flex-col w-full items-center gap-5">
-              <h1 className="game-hdr">{errorMessage}</h1>
-              <button onClick={handleRestart} className="restart-btn">
-                Find new game
-              </button>
-            </div>
-          ) : (
-            <h1 className="game-hdr">Finding Opponent...</h1>
-          )}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-5 m-5 w-full items-center content-center">
-          <div className="flex flex-col w-full items-center justify-center">
-            <h1 className="game-hdr">Battleship Game</h1>
-            <h2 className="game-subhdr">
-              {game.players.find((p) => p.connectionId === connectionId)
-                .isYourTurn
-                ? "Your turn"
-                : "Opponent's turn"}
-            </h2>
-            <h2>
-              Your Points:{" "}
-              {game.players.find((p) => p.connectionId === connectionId).points}
-            </h2>
-            {game.players.find(p => p.connectionId === connectionId).isYourTurn ? (
-                <h2 className='game-timer'>Shots remaining: {game.players.find(p => p.connectionId === connectionId).shotsRemaining}</h2>
-                ) : (
-                <h2 className='game-timer text-white'>Placeholder</h2>
-            )}
-            <h2 className="game-timer">Time left: {formatTime(timeLeft)}</h2>
-          </div>
-          <div className="flex flex-col items-center w-full">
-            <GameBoard
-              cells={
-                game.players.find((p) => p.connectionId === connectionId).cells
-              }
-              canShoot={false}
-              handleShot={handleShot}
-              isYourBoard={true}
-            />
-            <GameBoard
-              cells={
-                game.players.find((p) => p.connectionId !== connectionId).cells
-              }
-              canShoot={
-                game.players.find((p) => p.connectionId === connectionId)
-                  .isYourTurn
-              }
-              handleShot={handleShot}
-              isYourBoard={false}
-            />
-            <button className="new-game-btn" onClick={handleSurrender}>
-              Surrender
-            </button>
+    return (
+        <GameContext.Provider value={{ setGame }}>
+            {isLoading ? (
+                <div className='flex flex-col gap-5 m-5'>
+                    {showErrorMessage ? (
+                        <div className='flex flex-col w-full items-center gap-5'>
+                            <h1 className='game-hdr'>{errorMessage}</h1>
+                            <button onClick={handleRestart} className='restart-btn'>
+                                Find new game
+                            </button>
+                        </div>
+                    ) : (
+                        <h1 className='game-hdr'>Finding Opponent...</h1>
+                    )}
+                </div>
+            ) : (
+                <div className='flex flex-col gap-5 m-5 w-full items-center content-center'>
+                    <div className='flex flex-col w-full items-center justify-center'>
+                        <h1 className='game-hdr'>Battleship Game</h1>
+                        <h2 className='game-subhdr'>
+                            {game?.players.find(p => p.connectionId === connectionId).isYourTurn
+                                ? 'Your turn'
+                                : "Opponent's turn"}
+                        </h2>
+                        <h2>Your Points: {game?.players.find(p => p.connectionId === connectionId).points}</h2>
+                        <h2 className='game-timer'>Time left: {formatTime(timeLeft)}</h2>
+                    </div>
+                    <div className='flex flex-col items-center w-full'>
+                        <GameBoard
+                            cells={game?.players.find(p => p.connectionId === connectionId).cells}
+                            canShoot={false}
+                            handleShot={handleShot}
+                            isYourBoard={true}
+                        />
+                        <GameBoard
+                            cells={game?.players.find(p => p.connectionId !== connectionId).cells}
+                            canShoot={game?.players.find(p => p.connectionId === connectionId).isYourTurn}
+                            handleShot={handleShot}
+                            isYourBoard={false}
+                        />
+                        <button className='new-game-btn' onClick={handleSurrender}>
+                            Surrender
+                        </button>
+                         {gameSaveCode === 0 &&
+                         (<button className='bg-green-500 text-white mt-4 py-2 px-4 rounded' onClick={handleSaveGame}>
+                            Save Game (One time use)
+                        </button>)
+                        }  
+                        {gameSaveCode === 1 && 
+                         (<button className='bg-green-500 text-white mt-4 py-2 px-4 rounded' onClick={handleLoadSaveGame}>
+                            Load saved game
+                        </button>)
+                        }  
+                        {/* Shot Count Selection */}
+                        {game?.players.find(p => p.connectionId === connectionId).isYourTurn && (
+                            <div className='shot-selection'>
+                                {[1, 2, 3].map(numShots => (
+                                    availableShots >= numShots && (
+                                        <button
+                                            key={numShots}
+                                            className={`shot-icon ${selectedShots === numShots ? 'selected' : ''}`}
+                                            onClick={() => setSelectedShots(numShots)}
+                                        >
+                                            {numShots === 1 ? 'Single Shot' : numShots === 2 ? 'Double Shot' : 'Triple Shot'}
+                                        </button>
+                                    )
+                                ))}
+                            </div>
+                        )}
+                        </div>
 
-            {/* Shot Count Selection */}
-            {game.players.find((p) => p.connectionId === connectionId)
-              .isYourTurn && (
-              <div className="shot-selection">
-                {[1, 2, 3].map(
-                  (numShots) =>
-                    availableShots >= numShots && (
-                      <button
-                        key={numShots}
-                        className={`shot-icon ${
-                          selectedShots === numShots ? "selected" : ""
-                        }`}
-                        onClick={() => setSelectedShots(numShots)}
-                      >
-                        {numShots === 1
-                          ? "Single Shot"
-                          : numShots === 2
-                          ? "Double Shot"
-                          : "Triple Shot"}
-                      </button>
-                    )
-                )}
-              </div>
+                        <div>
+                            <h2 className='game-subhdr'>Chat</h2>
+                            <Chat handleMessage={handleMessage} text={messages}/>
+                        </div>
+                    {game?.players.find(p => p.connectionId === connectionId).gameStatus === 'WON' && (
+                        <GameResultModal
+                            iconName={faFaceSmile}
+                            iconColor='text-lime-600 border-lime-600'
+                            header='You won!'
+                            description={
+                                game?.players.find(p => p.connectionId !== connectionId).ships.length > 0
+                                    ? 'Opponent surrendered!'
+                                    : "You have destroyed all opponent's ships!"
+                            }
+                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? 'Next Level' : 'New Game'}
+                            handleButtonClick={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? handleGoToNextLevel : handleRestart}
+                        />
+                    )}
+                    {game?.players.find(p => p.connectionId === connectionId).gameStatus === 'LOST' && (
+                        <GameResultModal
+                            iconName={faFaceSadTear}
+                            iconColor='text-red-600 border-red-600'
+                            header='You lost!'
+                            description={
+                                game?.players.find(p => p.connectionId !== connectionId).ships.length > 0
+                                    ? 'You surrendered!'
+                                    : 'All of your ships have been destroyed!'
+                            }
+                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? 'Next Level' : 'New Game'}
+                            handleButtonClick={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? handleGoToNextLevel : handleRestart}
+                        />
+                    )}
+                    {game?.gameStatus === 'TIME_OUT' && (
+                        <GameResultModal
+                            iconName={faFaceSadTear}
+                            iconColor='text-black'
+                            header='Time Up!'
+                            description='The game ended due to the time limit being reached.'
+                            buttonText={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? 'Next Level' : 'New Game'}
+                            handleButtonClick={handleRestart}
+                        />
+                    )}
+                    {game?.players.find(p => p.connectionId === connectionId).gameStatus ===  'PAUSED_HOST' && (
+                        <GameResultModal
+                            iconName={faCirclePause}
+                            iconColor='text-cyan-600 border-cyan-600'
+                            header='Game Paused'
+                            description='The game has been paused by you.'
+                            buttonText='Resume'
+                            handleButtonClick={handleResume}
+                        />
+                    )}
+                    {game?.players.find(p => p.connectionId === connectionId).gameStatus ===  'PAUSED' && (
+                        <GameResultModal
+                            iconName={faCirclePause}
+                            iconColor='text-cyan-600 border-cyan-600'
+                            header='Game Paused'
+                            description='The game has been paused by your opponent.'
+                            buttonText='Wait'
+                            handleButtonClick={() => {}}
+                        />
+                    )}
+                </div>
             )}
-
-            {game.players.find((p) => p.connectionId === connectionId)
-              .isYourTurn && (
-              <div className="hitpoint-selection">
-                {[1, 2, 3, 4].map((num) => (
-                  <button
-                    key={num}
-                    className={`hitpoint-button ${
-                      selectedHitPoints === num ? "selected" : ""
-                    }`}
-                    onClick={() => setSelectedHitPoints(num)}
-                  >
-                    {num} Hit Points
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {game.players.find((p) => p.connectionId === connectionId)
-              .isYourTurn && (
-              <button className="move-fleet-btn" onClick={handleMoveFleet}>
-                Move Fleet with {selectedHitPoints} Hit Points
-              </button>
-            )}
-          </div>
-
-          <div>
-            <h2 className="game-subhdr">Chat</h2>
-            <Chat handleMessage={handleMessage} text={messages} />
-          </div>
-          {game.players.find((p) => p.connectionId === connectionId)
-            .gameStatus === "WON" && (
-            <GameResultModal
-              iconName={faFaceSmile}
-              iconColor="text-lime-600 border-lime-600"
-              header="You won!"
-              description={
-                game.players.find((p) => p.connectionId !== connectionId).ships
-                  .length > 0
-                  ? "Opponent surrendered!"
-                  : "You have destroyed all opponent's ships!"
-              }
-              buttonText={
-                game.players.find((p) => p.connectionId === connectionId).cells
-                  .length === 100
-                  ? "Next Level"
-                  : "New Game"
-              }
-              handleButtonClick={
-                game.players.find((p) => p.connectionId === connectionId).cells
-                  .length === 100
-                  ? handleGoToNextLevel
-                  : handleRestart
-              }
-            />
-          )}
-          {game.players.find((p) => p.connectionId === connectionId)
-            .gameStatus === "LOST" && (
-            <GameResultModal
-              iconName={faFaceSadTear}
-              iconColor="text-red-600 border-red-600"
-              header="You lost!"
-              description={
-                game.players.find((p) => p.connectionId !== connectionId).ships
-                  .length > 0
-                  ? "You surrendered!"
-                  : "All of your ships have been destroyed!"
-              }
-              buttonText={
-                game.players.find((p) => p.connectionId === connectionId).cells
-                  .length === 100
-                  ? "Next Level"
-                  : "New Game"
-              }
-              handleButtonClick={
-                game.players.find((p) => p.connectionId === connectionId).cells
-                  .length === 100
-                  ? handleGoToNextLevel
-                  : handleRestart
-              }
-            />
-          )}
-          {game.gameStatus === "TIME_OUT" && (
-            <GameResultModal
-              iconName={faFaceSadTear}
-              iconColor="text-black"
-              header="Time Up!"
-              description="The game ended due to the time limit being reached."
-              buttonText={
-                game.players.find((p) => p.connectionId === connectionId).cells
-                  .length === 100
-                  ? "Next Level"
-                  : "New Game"
-              }
-              handleButtonClick={handleRestart}
-            />
-          )}
-          {game.players.find((p) => p.connectionId === connectionId)
-            .gameStatus === "PAUSED_HOST" && (
-            <GameResultModal
-              iconName={faCirclePause}
-              iconColor="text-cyan-600 border-cyan-600"
-              header="Game Paused"
-              description="The game has been paused by you."
-              buttonText="Resume"
-              handleButtonClick={handleResume}
-            />
-          )}
-          {game.players.find((p) => p.connectionId === connectionId)
-            .gameStatus === "PAUSED" && (
-            <GameResultModal
-              iconName={faCirclePause}
-              iconColor="text-cyan-600 border-cyan-600"
-              header="Game Paused"
-              description="The game has been paused by your opponent."
-              buttonText="Wait"
-              handleButtonClick={() => {}}
-            />
-          )}
-        </div>
-      )}
-    </GameContext.Provider>
-  );
+        </GameContext.Provider>
+    );
 };
 
 export default Home;
