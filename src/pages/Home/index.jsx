@@ -20,6 +20,9 @@ const Home = () => {
     const [errorMessage, setErrorMessage] = useState('');
     const [showErrorMessage, setShowErrorMessage] = useState(false);
     const [conn, setConnection] = useState();
+    const [gameSaveMsg, setGameSaveMsg] = useState("false");
+    const [gameSaveCode, setgameSaveCode] = useState(0);
+    const [gameBackup, setGameBackup] = useState();
 
     const [timeLeft, setTimeLeft] = useState(3600);
 
@@ -29,6 +32,7 @@ const Home = () => {
     useEffect(() => {
         const getCurrentGame = async () => {
             setIsLoading(true);
+            setgameSaveCode(0);
             if (typeof id === 'undefined') {
                 try {
                     const response = await fetch(apiUrl, {
@@ -110,6 +114,18 @@ const Home = () => {
                 setGame(gameAfterGoToNextLevel);
             });
 
+            newConn.on('ReceiveGameAfterUndoWithSnapshot', (gameAfterUndo, msg) => {
+                if(gameSaveCode === 1){
+                    setGameSaveMsg(msg);
+                }
+                setGame(gameAfterUndo);
+            });
+
+            newConn.on('SnapshotSaved', (msg) => {
+                setGameSaveMsg(msg);
+                setGameBackup(game);
+            });
+
             newConn.on('ReceiveMessage', (username, message) => {
                 console.log("Received Message:", username, message);
                 setMessages((prevMessages) => [...prevMessages, { username, message }]);
@@ -163,6 +179,26 @@ const Home = () => {
     const handleMessage = message => () => {
         try {
             conn.invoke('SendMessage', message);
+        } catch (e) {
+            console.log(e);
+        }
+    };
+
+    const handleSaveGame = async () => {
+        try {
+            await conn.invoke('SnapshotGame');
+            console.log(game);
+            setGameBackup(game);
+            setgameSaveCode(1);
+        } catch (e) {
+            console.log(e);
+        }
+    };
+
+    const handleLoadSaveGame = async () => {
+        try {
+            await conn.invoke('UndoWithSnapshotGame', gameBackup);
+            setgameSaveCode(2);
         } catch (e) {
             console.log(e);
         }
@@ -254,32 +290,41 @@ const Home = () => {
                     <div className='flex flex-col w-full items-center justify-center'>
                         <h1 className='game-hdr'>Battleship Game</h1>
                         <h2 className='game-subhdr'>
-                            {game.players.find(p => p.connectionId === connectionId).isYourTurn
+                            {game?.players.find(p => p.connectionId === connectionId).isYourTurn
                                 ? 'Your turn'
                                 : "Opponent's turn"}
                         </h2>
-                        <h2>Your Points: {game.players.find(p => p.connectionId === connectionId).points}</h2>
+                        <h2>Your Points: {game?.players.find(p => p.connectionId === connectionId).points}</h2>
                         <h2 className='game-timer'>Time left: {formatTime(timeLeft)}</h2>
                     </div>
                     <div className='flex flex-col items-center w-full'>
                         <GameBoard
-                            cells={game.players.find(p => p.connectionId === connectionId).cells}
+                            cells={game?.players.find(p => p.connectionId === connectionId).cells}
                             canShoot={false}
                             handleShot={handleShot}
                             isYourBoard={true}
                         />
                         <GameBoard
-                            cells={game.players.find(p => p.connectionId !== connectionId).cells}
-                            canShoot={game.players.find(p => p.connectionId === connectionId).isYourTurn}
+                            cells={game?.players.find(p => p.connectionId !== connectionId).cells}
+                            canShoot={game?.players.find(p => p.connectionId === connectionId).isYourTurn}
                             handleShot={handleShot}
                             isYourBoard={false}
                         />
                         <button className='new-game-btn' onClick={handleSurrender}>
                             Surrender
                         </button>
-
+                         {gameSaveCode === 0 &&
+                         (<button className='bg-green-500 text-white mt-4 py-2 px-4 rounded' onClick={handleSaveGame}>
+                            Save Game (One time use)
+                        </button>)
+                        }  
+                        {gameSaveCode === 1 && 
+                         (<button className='bg-green-500 text-white mt-4 py-2 px-4 rounded' onClick={handleLoadSaveGame}>
+                            Load saved game
+                        </button>)
+                        }  
                         {/* Shot Count Selection */}
-                        {game.players.find(p => p.connectionId === connectionId).isYourTurn && (
+                        {game?.players.find(p => p.connectionId === connectionId).isYourTurn && (
                             <div className='shot-selection'>
                                 {[1, 2, 3].map(numShots => (
                                     availableShots >= numShots && (
@@ -300,13 +345,13 @@ const Home = () => {
                             <h2 className='game-subhdr'>Chat</h2>
                             <Chat handleMessage={handleMessage} text={messages}/>
                         </div>
-                    {game.players.find(p => p.connectionId === connectionId).gameStatus === 'WON' && (
+                    {game?.players.find(p => p.connectionId === connectionId).gameStatus === 'WON' && (
                         <GameResultModal
                             iconName={faFaceSmile}
                             iconColor='text-lime-600 border-lime-600'
                             header='You won!'
                             description={
-                                game.players.find(p => p.connectionId !== connectionId).ships.length > 0
+                                game?.players.find(p => p.connectionId !== connectionId).ships.length > 0
                                     ? 'Opponent surrendered!'
                                     : "You have destroyed all opponent's ships!"
                             }
@@ -314,13 +359,13 @@ const Home = () => {
                             handleButtonClick={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? handleGoToNextLevel : handleRestart}
                         />
                     )}
-                    {game.players.find(p => p.connectionId === connectionId).gameStatus === 'LOST' && (
+                    {game?.players.find(p => p.connectionId === connectionId).gameStatus === 'LOST' && (
                         <GameResultModal
                             iconName={faFaceSadTear}
                             iconColor='text-red-600 border-red-600'
                             header='You lost!'
                             description={
-                                game.players.find(p => p.connectionId !== connectionId).ships.length > 0
+                                game?.players.find(p => p.connectionId !== connectionId).ships.length > 0
                                     ? 'You surrendered!'
                                     : 'All of your ships have been destroyed!'
                             }
@@ -328,7 +373,7 @@ const Home = () => {
                             handleButtonClick={game.players.find(p => p.connectionId === connectionId).cells.length === 100 ? handleGoToNextLevel : handleRestart}
                         />
                     )}
-                    {game.gameStatus === 'TIME_OUT' && (
+                    {game?.gameStatus === 'TIME_OUT' && (
                         <GameResultModal
                             iconName={faFaceSadTear}
                             iconColor='text-black'
@@ -338,7 +383,7 @@ const Home = () => {
                             handleButtonClick={handleRestart}
                         />
                     )}
-                    {game.players.find(p => p.connectionId === connectionId).gameStatus ===  'PAUSED_HOST' && (
+                    {game?.players.find(p => p.connectionId === connectionId).gameStatus ===  'PAUSED_HOST' && (
                         <GameResultModal
                             iconName={faCirclePause}
                             iconColor='text-cyan-600 border-cyan-600'
@@ -348,7 +393,7 @@ const Home = () => {
                             handleButtonClick={handleResume}
                         />
                     )}
-                    {game.players.find(p => p.connectionId === connectionId).gameStatus ===  'PAUSED' && (
+                    {game?.players.find(p => p.connectionId === connectionId).gameStatus ===  'PAUSED' && (
                         <GameResultModal
                             iconName={faCirclePause}
                             iconColor='text-cyan-600 border-cyan-600'
